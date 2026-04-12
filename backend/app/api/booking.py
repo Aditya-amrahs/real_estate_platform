@@ -1,13 +1,14 @@
-from fastapi import APIRouter
-from backend.app.db.connection import engine
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy import text
+from backend.app.db.connection import engine
+from backend.app.api.auth import get_current_user
 
 router = APIRouter()
 
-# ------------------ BOOK VISIT ------------------
-
 @router.post("/book-visit")
-def book_visit(user_id: int, property_id: int, visit_date: str, visit_time: str):
+def book_visit(property_id: int, visit_date: str, visit_time: str,
+               user_id: int = Depends(get_current_user)):
+
     try:
         with engine.begin() as conn:
             conn.execute(text("""
@@ -19,7 +20,9 @@ def book_visit(user_id: int, property_id: int, visit_date: str, visit_time: str)
                 "visit_time": visit_time
             })
 
-        return {"message": "Booking successful"}
+        return {"message": "Booking confirmed"}
 
     except Exception as e:
-        return {"error": str(e)}
+        if "Slot already booked" in str(e):
+            raise HTTPException(400, "Slot already booked")
+        raise HTTPException(500, str(e))

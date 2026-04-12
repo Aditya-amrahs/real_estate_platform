@@ -5,6 +5,7 @@ from backend.app.api.auth import router as auth_router
 from backend.app.api.properties import router as property_router
 from backend.app.api.favorites import router as favorite_router
 from backend.app.api.booking import router as booking_router
+from backend.app.api import favorites, booking, dashboard, recommendations
 
 app = FastAPI()
 
@@ -12,7 +13,8 @@ app.include_router(auth_router)
 app.include_router(property_router)
 app.include_router(favorite_router)
 app.include_router(booking_router)
-
+app.include_router(dashboard.router)
+app.include_router(recommendations.router)
 
 @app.get("/")
 def root():

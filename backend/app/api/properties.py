@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from backend.app.db.connection import engine
 from sqlalchemy import text
+from backend.app.services.vector_search import add_property_embedding
 
 router = APIRouter()
 
@@ -102,10 +103,24 @@ def add_property():
                 VALUES ('2BHK Flat', 'Dehradun', 3000000, 'Apartment', 1200, :agent_id)
             """), {"agent_id": agent_id})
 
+            # GET LAST INSERTED PROPERTY ID
+            result = conn.execute(text("""
+                SELECT TOP 1 id FROM properties ORDER BY id DESC
+            """))
+            property_id = result.fetchone()[0]
+
+        
+        add_property_embedding(
+            property_id,
+            "2BHK Flat Dehradun Apartment"
+        )
+
         return {"message": "Property added successfully"}
 
     except Exception as e:
         return {"error": str(e)}
+    
+    
 @router.get("/check-properties")
 def check_properties():
     with engine.connect() as conn:

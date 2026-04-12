@@ -9,7 +9,7 @@ odbc_str = (
     "UID=Realestate;"
     "PWD=Estate@1;"
     "Encrypt=yes;"
-    "TrustServerCertificate=no;"
+    "TrustServerCertificate=yes;"
     "Connection Timeout=30;"
 )
 
