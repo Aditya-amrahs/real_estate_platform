@@ -84,7 +84,6 @@ def create_agent():
 
 
 # ------------------ ADD PROPERTY (FINAL FIX) ------------------
-
 @router.post("/add-property")
 def add_property():
     try:
@@ -119,8 +118,8 @@ def add_property():
 
     except Exception as e:
         return {"error": str(e)}
-    
-    
+
+        
 @router.get("/check-properties")
 def check_properties():
     with engine.connect() as conn:
