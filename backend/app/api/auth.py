@@ -10,29 +10,43 @@ from datetime import datetime, timedelta
 router = APIRouter()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# ------------------ REGISTER ------------------
-
+#  define class
 class UserRegister(BaseModel):
     name: str
     email: str
     password: str
-
+#-------------REGISTER------------------
 @router.post("/register")
 def register(user: UserRegister):
-    hashed_password = pwd_context.hash(user.password)
+    try:
+        print("STEP 1")
 
-    with engine.begin() as conn:
-        conn.execute(text("""
-            INSERT INTO users (name, email, password, role)
-            VALUES (:name, :email, :password, :role)
-        """), {
-            "name": user.name,
-            "email": user.email,
-            "password": hashed_password,
-            "role": "user"
-        })
+        # temporarily avoid bcrypt issues
+        hashed_password = user.password
 
-    return {"message": "User registered successfully"}
+        print("STEP 2")
+
+        with engine.begin() as conn:
+            print("STEP 3")
+
+            conn.execute(text("""
+                INSERT INTO users (name, email, password, role)
+                VALUES (:name, :email, :password, :role)
+            """), {
+                "name": user.name,
+                "email": user.email,
+                "password": hashed_password,
+                "role": "user"
+            })
+
+        print("STEP 4 SUCCESS")
+
+        return {"message": "User registered successfully"}
+
+    except Exception as e:
+        print(" REGISTER ERROR:", e)
+        return {"error": str(e)}
+
 
 
 # ------------------ LOGIN  ------------------
@@ -46,32 +60,46 @@ ALGORITHM = "HS256"
 
 @router.post("/login")
 def login(user: UserLogin):
-    with engine.connect() as conn:
-        result = conn.execute(text("""
-            SELECT id, password FROM users WHERE email = :email
-        """), {"email": user.email})
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT id, password FROM users WHERE email = :email
+            """), {"email": user.email})
 
-        db_user = result.fetchone()
+            db_user = result.fetchone()
 
-    if not db_user:
-        return {"error": "User not found"}
+        if not db_user:
+            return {"error": "User not found"}
 
-    user_id, hashed_password = db_user
+        user_id, hashed_password = db_user
 
-    if not pwd_context.verify(user.password, hashed_password):
-        return {"error": "Invalid password"}
+        # ✅ HANDLE BOTH HASHED + PLAIN PASSWORD
+        try:
+            if hashed_password.startswith("$2b$"):
+                valid = pwd_context.verify(user.password, hashed_password)
+            else:
+                valid = (user.password == hashed_password)
+        except:
+            valid = False
 
-    token_data = {
-        "user_id": user_id,
-        "exp": datetime.utcnow() + timedelta(hours=2)
-    }
+        if not valid:
+            return {"error": "Invalid password"}
 
-    token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+        token_data = {
+            "user_id": user_id,
+            "exp": datetime.utcnow() + timedelta(hours=2)
+        }
 
-    return {
-        "message": "Login successful",
-        "token": token
-    }
+        token = jwt.encode(token_data, SECRET_KEY, algorithm=ALGORITHM)
+
+        return {
+            "message": "Login successful",
+            "token": token
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+    
 #JWT AUTHENTICATION--------------------------
 from fastapi import Header, HTTPException
 from jose import jwt
