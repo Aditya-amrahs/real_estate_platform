@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from backend.app.db.connection import engine
 from sqlalchemy import text
-
+from fastapi import APIRouter, Depends
 router = APIRouter()
 
 # ------------------ GET PROPERTIES ------------------
@@ -44,48 +44,13 @@ def get_properties(
     except Exception as e:
         return {"error": str(e)}
 
-# ------------------ CREATE USER ------------------
 
-@router.post("/create-user")
-def create_user():
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("""
-                INSERT INTO users (name, email, password, role)
-                VALUES ('Agent1', 'agent1@gmail.com', 'pass', 'agent')
-            """))
-        return {"message": "User created"}
-    except Exception as e:
-        return {"error": str(e)}
+# ------------------ ADD PROPERTY  ------------------
 
-
-# ------------------ CREATE AGENT ------------------
-
-@router.post("/create-agent")
-def create_agent():
-    try:
-        with engine.begin() as conn:
-            result = conn.execute(text("SELECT TOP 1 id FROM users ORDER BY id DESC"))
-            user = result.fetchone()
-
-            if not user:
-                return {"error": "No user found"}
-
-            conn.execute(text("""
-                INSERT INTO agents (user_id)
-                VALUES (:user_id)
-            """), {"user_id": user[0]})
-
-        return {"message": "Agent created"}
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ------------------ ADD PROPERTY (FINAL FIX) ------------------
+from backend.app.api.auth import require_agent
 
 @router.post("/add-property")
-def add_property():
+def add_property(user=Depends(require_agent)):
     try:
         with engine.begin() as conn:
             # get valid agent_id
@@ -106,6 +71,7 @@ def add_property():
 
     except Exception as e:
         return {"error": str(e)}
+#-----------------check properties-------------------
 @router.get("/check-properties")
 def check_properties():
     with engine.connect() as conn:
@@ -135,7 +101,7 @@ def get_property(property_id: int):
 # ------------------ UPDATE PROPERTY ------------------
 
 @router.put("/properties/{property_id}")
-def update_property(property_id: int, title: str = None, price: float = None):
+def update_property(property_id: int, user=Depends(require_agent)):
     try:
         query = "UPDATE properties SET "
         updates = []
@@ -164,7 +130,7 @@ def update_property(property_id: int, title: str = None, price: float = None):
 # ------------------ DELETE PROPERTY ------------------
 
 @router.delete("/properties/{property_id}")
-def delete_property(property_id: int):
+def delete_property(property_id: int, user=Depends(require_agent)):
     try:
         with engine.begin() as conn:
             conn.execute(text("""

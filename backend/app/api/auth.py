@@ -16,6 +16,7 @@ class UserRegister(BaseModel):
     name: str
     email: str
     password: str
+    role: str   # user or agent
 
 @router.post("/register")
 def register(user: UserRegister):
@@ -29,7 +30,7 @@ def register(user: UserRegister):
             "name": user.name,
             "email": user.email,
             "password": hashed_password,
-            "role": "user"
+            "role": user.role
         })
 
     return {"message": "User registered successfully"}
@@ -48,7 +49,7 @@ ALGORITHM = "HS256"
 def login(user: UserLogin):
     with engine.connect() as conn:
         result = conn.execute(text("""
-            SELECT id, password FROM users WHERE email = :email
+            SELECT id, password, role FROM users WHERE email = :email
         """), {"email": user.email})
 
         db_user = result.fetchone()
@@ -56,13 +57,15 @@ def login(user: UserLogin):
     if not db_user:
         return {"error": "User not found"}
 
-    user_id, hashed_password = db_user
+    user_id, hashed_password, role = db_user
 
     if not pwd_context.verify(user.password, hashed_password):
         return {"error": "Invalid password"}
 
+    # ✅ include role in token
     token_data = {
         "user_id": user_id,
+        "role": role,
         "exp": datetime.utcnow() + timedelta(hours=2)
     }
 
@@ -89,7 +92,59 @@ def get_current_user(authorization: str = Header(None)):
 
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
 
-        return payload["user_id"]
+        return payload   # returns user_id + role
 
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+from fastapi import HTTPException, Depends
+
+def require_agent(user=Depends(get_current_user)):
+    if user["role"] != "agent":
+        raise HTTPException(status_code=403, detail="Only agents allowed")
+    
+    return user
+#------------------ GET USERS (FOR TESTING) ------------------
+@router.get("/users")
+def get_users():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT id, name, email, role FROM users
+            """))
+            rows = result.fetchall()
+
+        return {"users": [dict(r._mapping) for r in rows]}
+
+    except Exception as e:
+        return {"error": str(e)}
+    from fastapi import Depends
+
+@router.delete("/users/{user_id}")
+def delete_user(user_id: int):
+    try:
+        with engine.begin() as conn:
+            
+            # delete favorites
+            conn.execute(text("""
+                DELETE FROM favorites WHERE user_id = :id
+            """), {"id": user_id})
+
+            # delete bookings
+            conn.execute(text("""
+                DELETE FROM bookings WHERE user_id = :id
+            """), {"id": user_id})
+
+            # delete agents linked to user
+            conn.execute(text("""
+                DELETE FROM agents WHERE user_id = :id
+            """), {"id": user_id})
+
+            # finally delete user
+            conn.execute(text("""
+                DELETE FROM users WHERE id = :id
+            """), {"id": user_id})
+
+        return {"message": "User deleted successfully"}
+
+    except Exception as e:
+        return {"error": str(e)}
