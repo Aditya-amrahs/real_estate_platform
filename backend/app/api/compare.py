@@ -22,7 +22,7 @@ def compare_properties(property_ids: list[int] = Query(...)):
         if not properties:
             return {"message": "No properties found"}
 
-        # 🔥 ADD COMPARISON LOGIC
+        #  ADD COMPARISON LOGIC
         for p in properties:
             p["price_per_sqft"] = round(p["price"] / p["size"], 2)
 
